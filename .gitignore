@@ -1,5 +1,6 @@
 *.xlsx
 *.xls
+*.csv
 *.rar
 
 notes.py
