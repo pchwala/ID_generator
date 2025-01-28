@@ -1,0 +1,7 @@
+*.xlsx
+*.xls
+*.rar
+
+notes.py
+test.py
+clean.py
