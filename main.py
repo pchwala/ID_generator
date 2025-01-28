@@ -4,11 +4,12 @@ import math
 
 class IDGenerator:
     
-    def __init__(self):
+    def __init__(self, fID_filename, fInput_filename):
         
         # Read excel files with ID data and file to format and generate IDs
-        self.fID = pd.read_excel('./pliczekID.xlsx', sheet_name=None)
-        self.fInput = pd.read_excel('./D993example.xls', sheet_name=None)
+        
+        self.fID = pd.read_excel(fID_filename, sheet_name=None)
+        self.fInput = pd.read_excel(fInput_filename, sheet_name=None)
         self.fID_keys = list(self.fID.keys())
         self.fInput_keys = list(self.fInput.keys())
         
@@ -19,7 +20,9 @@ class IDGenerator:
         self.df_ID = self.clean_ID(self.df_ID)
         
         # Save the cleaned data to a new CSV file (optional)
-        self.df_ID.to_csv('cleaned_laptops2.csv', index=False)
+        self.df_ID.to_csv('outputID.csv', index=False)
+    
+    
         
     def clean_ID(self, df):
         # Number of rows of df before any formatting
@@ -158,6 +161,13 @@ class IDGenerator:
                 print(printList[x])
         
         return 0               
-        
-        
-generator = IDGenerator()
+  
+#ID_name = input("Podaj nazwe pliku z ID: ")
+#Input_name = input("Podaj nazwe pliku wejsciowego: ")
+
+ID_name = "plikID.xlsx"
+Input_name = "D993.xls"
+
+generator = IDGenerator(ID_name, Input_name)
+
+temp = input("Press any key to continue")
