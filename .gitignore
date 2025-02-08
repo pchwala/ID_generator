@@ -19,3 +19,6 @@ clean.py
 *.html
 *.exe
 *.txt
+
+# Ignore log files
+*.log

@@ -1,52 +1,108 @@
 import re
 import pandas as pd
-import math
-import itertools
+
+import logging
+
+# Redirect print statements to logging
+def log_print(*args, **kwargs):
+    logging.info(" ".join(map(str, args)))   
+    
+
+# Set up logging to log all print statements into a text file
+logging.basicConfig(filename="output.log", level=logging.INFO, format="%(asctime)s - %(message)s") 
+
+# Replace the default print function
+print = log_print
 
 class IDGenerator:
     
-    def __init__(self, fID_filename, fInput_filename):
+    def __init__(self):
+        
+        # All of the below values are explained in self.read_files
+        self.fID = None
+        self.fInput = None
+        self.fID_keys = None
+        self.fInput_keys = None
+        self.dfID = None
+        self.dfInput = None
+        
+        self.fID_filename = None
+        self.fInput_filename = None
+        
+        # If searching is run multiple times this variable prevents cleaning ID file multiple times
+        self.fID_filename_change = True
+    
+      
+    # Open and read files, returns values to be handled by GUI
+    def read_files(self, fID_filename, fInput_filename):
+        # Initialize the values to give acces to them for entire class
+        if self.fID_filename != fID_filename:
+            self.fID_filename = fID_filename
+            self.fID_filename_change = True
+        else:
+            self.fID_filename_change = False
+        self.fInput_filename = fInput_filename
         
         # Read excel files with ID data and file to format and generate IDs
         try:
             self.fID = pd.read_excel(fID_filename, sheet_name=None)
         except Exception as e:
             print(f"Cannot open file: {e}")
-            return None
+            return e
             
         try:
             self.fInput = pd.read_excel(fInput_filename, sheet_name=None)
         except Exception as e:
             print(f"Cannot open file: {e}")
-            return None
-            
+            return e
+        
         self.fID_keys = list(self.fID.keys())
         self.fInput_keys = list(self.fInput.keys())
         
         # Sheets with relevant data
-        self.dfID = self.fID[self.fID_keys[0]]
+        if self.fID_filename_change is True:
+            self.dfID = self.fID[self.fID_keys[0]]
         self.dfInput = self.fInput[self.fInput_keys[0]]
         
-        self.dfID = self.clean_ID(self.dfID)
+        return None
+        
+        
+    # Makes the job done, returns values to be handled by GUI
+    # This funtion runs as a thread
+    def process_files(self, result_queue):
+        try:
+            if self.fID_filename_change is True:
+                self.dfID = self.clean_ID(self.dfID)
+        except Exception as e:
+            result_queue.put(e)
+            return 
         
         # Save the cleaned data to a new CSV file (optional)
         try:
-            self.dfID.to_csv('outputID.csv', index=False)
-        except:
+            if self.fID_filename_change is True:
+                self.dfID.to_csv('outputID.csv', index=False)
+        except Exception as e:
             print("Cannot save to file")
+            result_queue.put(e)
+            return 
         
-        self.dfInput = self.match_ID(self.dfInput, self.dfID)
+        self.dfInput, matches_found = self.match_ID(self.dfInput, self.dfID)
         
         # Save data with added found IDs
         try:
             # Regex pattern to extract text before the extension .xls, xlsx
             pattern = r"^(.*?)(?=\.\w{3,4}$)"
-            new_name = re.match(pattern, fInput_filename).group(1)
+            new_name = re.match(pattern, self.fInput_filename).group(1)
             new_name = new_name + "_znalezione.xlsx"
             self.dfInput.to_excel(new_name, index=False)
         except Exception as e:
             print(f"Cannot save to file: {e}")
-     
+            result_queue.put(e)
+            return
+        
+        result_queue.put(matches_found)
+        return
+            
      
     # Finds matches for one laptop in dfID
     # Returns df with with all the matches
@@ -198,9 +254,10 @@ class IDGenerator:
                     print() # Print newline because ther is no newline at the end of -- print(index, row['S/N'], end=" ") --
                 
 
-        print("Znaleziono ID: ", all_matches_count)
+        print("Found ID: ", all_matches_count)
+        print("----------------------------------------------------------------------------------------\n")
         dfCleaned['Znalezione ID'] = all_matches
-        return dfCleaned
+        return dfCleaned, all_matches_count # return final dataframe and how many matches were found
               
               
     def clean_ID(self, df):
@@ -226,9 +283,10 @@ class IDGenerator:
 
         formatted_len = len(df)
 
-        print("Wszystkie znalezione ID: ", unformatted_len)
-        print("Użyteczne ID: ", formatted_len, " Usunieto: ", unformatted_len - formatted_len)
-        
+        print("All matched IDs: ", unformatted_len)
+        print("Useful IDs: ", formatted_len, " Deleted: ", unformatted_len - formatted_len)
+        print("========================================================================================\n\n\n")
+
         return df    
         
         
@@ -285,10 +343,10 @@ class IDGenerator:
     # Additionalyy formats and fixes errors generated by extract_specs function
     # There are errors because of how poorly made is the source data excel file
     def format_specs(self, df):
-        print("Iteruję ID: ")
+        print("Iterating ID: ")
         # Iterate over rows
         for index, row in df.iterrows():
-            print(index)
+            #print(index)
             # Fix 'Model' being in 'Manufacturer' column because of wrong usage of ' / ' split character in source file
             if 'thinkpad' in row['Manufacturer'].lower():
                 df.at[index, 'Model'] = "ThinkPad " + row['Model']
@@ -322,19 +380,8 @@ class IDGenerator:
             
             # Every other shift error blanked    
             elif 'gb' in row['Processor'].lower():
-                print(row['ID'])
+                #print(row['ID'])
                 df.at[index, 'Processor'] = "-"
             
         return df 
-            
-  
-ID_name = input("Podaj nazwę pliku z ID (domyślne: plikID.xlsx): ")
-if ID_name == "":
-    ID_name = "plikID.xlsx"
-Input_name = input("Podaj nazwe pliku wejsciowego: ")
-if Input_name == "":
-    Input_name = "D979.xls"
-
-generator = IDGenerator(ID_name, Input_name)
-
-temp = input("Press any key to continue")
+    
