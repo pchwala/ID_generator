@@ -3,6 +3,11 @@ import pandas as pd
 
 import logging
 
+import gspread
+from gspread_dataframe import get_as_dataframe
+from google.oauth2.service_account import Credentials
+
+
 # Redirect print statements to logging
 def log_print(*args, **kwargs):
     logging.info(" ".join(map(str, args)))   
@@ -19,36 +24,48 @@ class IDGenerator:
     def __init__(self):
         
         # All of the below values are explained in self.read_files
-        self.fID = None
         self.fInput = None
         self.fID_keys = None
         self.fInput_keys = None
         self.dfID = None
         self.dfInput = None
         
-        self.fID_filename = None
+        self.fID_URL = None
         self.fInput_filename = None
+        self.fOutput_filename = None
         
         # If searching is run multiple times this variable prevents cleaning ID file multiple times
-        self.fID_filename_change = True
+        self.fID_changed = True
+        
+        self.scopes = [
+            "https://www.googleapis.com/auth/spreadsheets"
+        ]
+        self.credentials = Credentials.from_service_account_file("credentials.json", scopes=self.scopes)
+        self.client = gspread.authorize(self.credentials)
     
+    def toggle_fID_changed(self):
+        self.fID_changed = True
       
     # Open and read files, returns values to be handled by GUI
-    def read_files(self, fID_filename, fInput_filename):
+    def read_files(self, fID_URL, fInput_filename, fOutput_filename):
         # Initialize the values to give acces to them for entire class
-        if self.fID_filename != fID_filename:
-            self.fID_filename = fID_filename
-            self.fID_filename_change = True
+        if self.fID_URL != fID_URL:
+            self.fID_URL = fID_URL
+            self.fID_changed = True
         else:
-            self.fID_filename_change = False
+            self.fID_changed = False
         self.fInput_filename = fInput_filename
+        self.fOutput_filename = fOutput_filename
         
         # Read excel files with ID data and file to format and generate IDs
-        try:
-            self.fID = pd.read_excel(fID_filename, sheet_name=None)
-        except Exception as e:
-            print(f"Cannot open file: {e}")
-            return e
+        if self.fID_changed is True:
+            try:
+                spreadsheet = self.client.open_by_url(fID_URL)  # Open google spreadsheet
+                worksheet = spreadsheet.worksheet("Raw Date")   # Select Raw date sheet
+                self.dfID = get_as_dataframe(worksheet, evaluate_formulas=True)  # Convert to dataframe
+            except Exception as e:
+                print(f"Cannot open file: {e}")
+                return e
             
         try:
             self.fInput = pd.read_excel(fInput_filename, sheet_name=None)
@@ -56,12 +73,8 @@ class IDGenerator:
             print(f"Cannot open file: {e}")
             return e
         
-        self.fID_keys = list(self.fID.keys())
-        self.fInput_keys = list(self.fInput.keys())
-        
         # Sheets with relevant data
-        if self.fID_filename_change is True:
-            self.dfID = self.fID[self.fID_keys[0]]
+        self.fInput_keys = list(self.fInput.keys())
         self.dfInput = self.fInput[self.fInput_keys[0]]
         
         return None
@@ -71,7 +84,7 @@ class IDGenerator:
     # This funtion runs as a thread
     def process_files(self, result_queue):
         try:
-            if self.fID_filename_change is True:
+            if self.fID_changed is True:
                 self.dfID = self.clean_ID(self.dfID)
         except Exception as e:
             result_queue.put(e)
@@ -79,8 +92,8 @@ class IDGenerator:
         
         # Save the cleaned data to a new CSV file (optional)
         try:
-            if self.fID_filename_change is True:
-                self.dfID.to_csv('outputID.csv', index=False)
+            if self.fID_changed is True:
+                self.dfID.to_csv('outputID-fromURL.csv', index=False)
         except Exception as e:
             print("Cannot save to file")
             result_queue.put(e)
@@ -93,8 +106,9 @@ class IDGenerator:
             # Regex pattern to extract text before the extension .xls, xlsx
             pattern = r"^(.*?)(?=\.\w{3,4}$)"
             new_name = re.match(pattern, self.fInput_filename).group(1)
-            new_name = new_name + "_znalezione.xlsx"
-            self.dfInput.to_excel(new_name, index=False)
+            new_name = new_name.rsplit('/', 1)[-1]  # extract everything after the last '/'
+            output_name = self.fOutput_filename + "/" + new_name + "_znalezione.xlsx" # name with correct extension in specified output folder
+            self.dfInput.to_excel(output_name, index=False)
         except Exception as e:
             print(f"Cannot save to file: {e}")
             result_queue.put(e)
@@ -263,14 +277,15 @@ class IDGenerator:
     def clean_ID(self, df):
         # Number of rows of df before any formatting
         unformatted_len = len(df)
+        
         # Remove rows containing the keyword "dokująca"
-        df = df[~df['Nazwa'].str.contains('dokująca', case=False, na=False)]
+        df = df[~df['Pełna nazwa'].str.contains('dokująca', case=False, na=False)]
 
         # Apply the function to the "Specs" column to extract values from it
-        df[['Manufacturer', 'Model', 'Processor', 'RAM', 'HDD', 'Graphics', 'Resolution', 'Touchscreen', 'Windows', 'Class']] = df['Nazwa'].apply(self.extract_specs)
+        df[['Manufacturer', 'Model', 'Processor', 'RAM', 'HDD', 'Graphics', 'Resolution', 'Touchscreen', 'Windows', 'Class']] = df['Pełna nazwa'].apply(self.extract_specs)
 
         # Drop the original "Specs" column and other non-important columns
-        df = df.drop(columns=['Producent', 'Nazwa'])
+        df = df.drop(columns=['Producent', 'Pełna nazwa'])
 
         # Addidtionaly format and fix errors that couldn't get fixed by extract_specs function
         df = self.format_specs(df)
@@ -280,6 +295,10 @@ class IDGenerator:
 
         # Drop rows with blank important data for random reasons
         df = df[~df['Processor'].str.fullmatch("")]
+
+        # Convert 'ID' column to string and cut off '.0' from it
+        df["ID"] = df["ID"].astype(str)
+        df["ID"] = df["ID"].str.split('.').str[0]
 
         formatted_len = len(df)
 

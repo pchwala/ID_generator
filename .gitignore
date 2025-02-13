@@ -22,3 +22,6 @@ clean.py
 
 # Ignore log files
 *.log
+
+# Ignore credentials file
+credentials.json
