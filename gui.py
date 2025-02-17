@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 from tkinter import ttk
 import threading, queue
-from time import sleep
 
 from id_generator import *
 
@@ -52,7 +51,10 @@ class GUI():
         self.file3_button.grid(row=2, column=1, padx=(0,10), pady=1, sticky="w")
         
         self.search_button.grid(row=3, column=0, columnspan=2, padx=10, pady=10)
-        self.progressbar.grid(row=4, column=0, columnspan=2, padx=10, pady=10)
+        self.progressbar.grid(row=4, column=0, columnspan=2, padx=10, pady=(10, 2))
+        
+        self.label1 = ttk.Label(root, text="")
+        self.label1.grid(row=5, column=0, columnspan=2, padx=10)
         
         # Init IDGenerator
         self.generator = IDGenerator()
@@ -110,47 +112,79 @@ class GUI():
     def search_button_callback(self):
         # Get link to google spreadsheet from enrtry1
         spreasheet_link = self.entry1.get()
-        # Open and read files
-        err = self.generator.read_files(spreasheet_link, self.file_paths[1], self.file_paths[2])
-        if err is not None:
-            messagebox.showinfo("Error!", err)
-            self.progressbar.stop()
-            return err
-        
-        # Finds ID's
-        self.search_thread(self.generator)
+        # Open and read files then this function creates thread that search for ID's
+        self.read_files_thread(self.generator, spreasheet_link, self.file_paths[1], self.file_paths[2])
         
     # Makes a thread wchich runs functions from IDGenerator that search for ID's
     # It is non-blocking, queue with returned value is checked every 50ms
     def search_thread(self, generator):
         generator_queue = queue.Queue() # return value queue
         thread = threading.Thread(target=generator.process_files, args=(generator_queue,))
-        thread.daemon = True
         
         # Starts the thread and progressbar
         thread.start()
+        self.label1.configure(text="Wyszukiwanie ID")
         self.progressbar.start(10)
         
         # Checks queue for returned vales every 50ms
-        root.after(50, self.check_result, generator_queue)  
+        root.after(50, self.check_result_search, generator_queue)
+        
     
+    def read_files_thread(self, generator, spreasheet_link, file_path1, file_path2):
+        generator_queue = queue.Queue() # return value queue
+        thread = threading.Thread(target=generator.read_files, args=(generator_queue, spreasheet_link, file_path1, file_path2,))
+        thread.daemon = False
+        
+        # Starts the thread and progressbar
+        thread.start()
+        self.label1.configure(text="Pobieranie ID")
+        self.progressbar.start(10)
+        
+        # Checks queue for returned vales every 50ms
+        root.after(50, self.check_result_read, generator_queue)
+    
+
     # Function to check and retrieve the result from the queue
-    def check_result(self, result_queue):
+    def check_result_search(self, result_queue):
         try:
             err = result_queue.get_nowait()  # Try to get the result and update 
             # If returned value is int then function finished properly and found ID's
             # Else there were error
             if isinstance(err, int):    
                 self.progressbar.stop()
+                self.label1.configure(text="")
                 msg = "Znaleziono " + str(err) + " ID"
                 messagebox.showinfo("Znaleziono", msg)  # Show how many ID's were found
                 return err
             else:   
                 self.progressbar.stop()
+                self.label1.configure(text="")
                 messagebox.showinfo("Error!", err)  #Show errors
                 return err
         except queue.Empty:
-            root.after(50, self.check_result, result_queue)  # Check again later if no result yet
+            root.after(50, self.check_result_search, result_queue)  # Check again later if no result yet
+            
+    
+    # Function to check and retrieve the result from the queue
+    def check_result_read(self, result_queue):
+        try:
+            err = result_queue.get_nowait()  # Try to get the result and update 
+            # If returned value is int then function finished properly and found ID's
+            # Else there were error
+            if err is None:    
+                self.progressbar.stop()
+                self.label1.configure(text="")
+                # Finds ID's
+                self.search_thread(self.generator)
+                return err
+            else:   
+                self.progressbar.stop()
+                self.label1.configure(text="")
+                messagebox.showinfo("Error!", err)  #Show errors
+                return err
+        except queue.Empty:
+            root.after(50, self.check_result_read, result_queue)  # Check again later if no result yet
+
 
     # Fill given entry end entry handle
     def fill_entry(self, entry, text):
@@ -159,15 +193,19 @@ class GUI():
         entry.insert(0, text)
         entry.configure(state='disabled')
     
+    
     # Fill entry callbacks        
     def fill_entry1(self, text):
         self.fill_entry(self.entry1, text)
     
+    
     def fill_entry2(self, text):
         self.fill_entry(self.entry2, text)
         
+        
     def fill_entry3(self, text):
         self.fill_entry(self.entry3, text)
+        
         
     def on_close(self):
         self.write_config()

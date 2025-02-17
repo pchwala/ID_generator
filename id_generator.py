@@ -3,9 +3,8 @@ import pandas as pd
 
 import logging
 
-import gspread
-from gspread_dataframe import get_as_dataframe
-from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from google.oauth2 import service_account
 
 
 # Redirect print statements to logging
@@ -37,17 +36,16 @@ class IDGenerator:
         # If searching is run multiple times this variable prevents cleaning ID file multiple times
         self.fID_changed = True
         
-        self.scopes = [
-            "https://www.googleapis.com/auth/spreadsheets"
-        ]
-        self.credentials = Credentials.from_service_account_file("credentials.json", scopes=self.scopes)
-        self.client = gspread.authorize(self.credentials)
+        self.scopes = ["https://www.googleapis.com/auth/drive"]
+        self.credentials = service_account.Credentials.from_service_account_file("credentials.json", scopes=self.scopes)
+        self.drive_service = build("drive", "v3", credentials=self.credentials)
     
     def toggle_fID_changed(self):
         self.fID_changed = True
+        self.fID_URL = ""
       
     # Open and read files, returns values to be handled by GUI
-    def read_files(self, fID_URL, fInput_filename, fOutput_filename):
+    def read_files(self, result_queue, fID_URL, fInput_filename, fOutput_filename):
         # Initialize the values to give acces to them for entire class
         if self.fID_URL != fID_URL:
             self.fID_URL = fID_URL
@@ -60,24 +58,44 @@ class IDGenerator:
         # Read excel files with ID data and file to format and generate IDs
         if self.fID_changed is True:
             try:
-                spreadsheet = self.client.open_by_url(fID_URL)  # Open google spreadsheet
-                worksheet = spreadsheet.worksheet("Raw Date")   # Select Raw date sheet
-                self.dfID = get_as_dataframe(worksheet, evaluate_formulas=True)  # Convert to dataframe
+                # Extract file ID from the link
+                file_id = fID_URL.split("/d/")[1].split("/")[0]
+
+                file_name = "fetched_id.xlsx"
+                # Download the file
+                request = self.drive_service.files().get_media(fileId=file_id)
+                with open(file_name, "wb") as f:
+                    f.write(request.execute())
+                    
+                # Read downloaded excel file
+                try:
+                    self.fID = pd.read_excel(file_name, sheet_name=None)
+                except Exception as e:
+                    print(f"Cannot open file: {e}")
+                    result_queue.put(e)
+                    return
+                
+                # Sheet with relevant data
+                self.dfID = self.fID['Raw Date']
+                
             except Exception as e:
-                print(f"Cannot open file: {e}")
-                return e
+                print(f"Cannot download file: {e}")
+                result_queue.put(e)
+                return
             
         try:
             self.fInput = pd.read_excel(fInput_filename, sheet_name=None)
         except Exception as e:
             print(f"Cannot open file: {e}")
-            return e
+            result_queue.put(e)
+            return
         
         # Sheets with relevant data
         self.fInput_keys = list(self.fInput.keys())
         self.dfInput = self.fInput[self.fInput_keys[0]]
         
-        return None
+        result_queue.put(None)
+        return
         
         
     # Makes the job done, returns values to be handled by GUI
@@ -93,13 +111,16 @@ class IDGenerator:
         # Save the cleaned data to a new CSV file (optional)
         try:
             if self.fID_changed is True:
-                self.dfID.to_csv('outputID-fromURL.csv', index=False)
+                self.dfID.to_csv('output_id_fromURL.csv', index=False)
         except Exception as e:
             print("Cannot save to file")
             result_queue.put(e)
             return 
         
         self.dfInput, matches_found = self.match_ID(self.dfInput, self.dfID)
+        if self.dfInput is KeyError:
+            print("KeyError")
+            result_queue.put(KeyError)
         
         # Save data with added found IDs
         try:
@@ -147,9 +168,12 @@ class IDGenerator:
             
             # Following if's search for matches for given laptop
             # Count matches and at the end return df row with boolean values of matched values
-            if input_row['Producent'].lower() in row['Manufacturer'].lower():
-                m_manufacturer = True
-                count += 1
+            try:
+                if input_row['Producent'].lower() in row['Manufacturer'].lower():
+                    m_manufacturer = True
+                    count += 1
+            except Exception as e:
+                return KeyError
                     
             if input_row['Model'].lower() in row['Model'].lower():  # This is not ideal because some models wrongly match ex. T480 and T480s and silver versions of laptops
                 m_model = True
@@ -248,6 +272,8 @@ class IDGenerator:
             print(index, "\t", row['S/N'], end="\t")
             if(index >= 0):
                 matched = self.match_one(row, dfID)
+                if matched is KeyError:
+                    return KeyError, KeyError
                 if matched is not None:
                     max_matched = matched['count'].max()    # Best match with most matched values
                     print("matches = ", max_matched, end=",\t")
