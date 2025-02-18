@@ -35,6 +35,8 @@ class IDGenerator:
         
         # If searching is run multiple times this variable prevents cleaning ID file multiple times
         self.fID_changed = True
+        # If this is true then match ID with specific HDD values, otherwise match only 'BRAK DYSKU'
+        self.hdd_switch = False
         
         self.scopes = ["https://www.googleapis.com/auth/drive"]
         self.credentials = service_account.Credentials.from_service_account_file("credentials.json", scopes=self.scopes)
@@ -43,6 +45,11 @@ class IDGenerator:
     def toggle_fID_changed(self):
         self.fID_changed = True
         self.fID_URL = ""
+        
+        
+    def toggle_hdd_switch(self, value):
+        self.hdd_switch = value
+        
       
     # Open and read files, returns values to be handled by GUI
     def read_files(self, result_queue, fID_URL, fInput_filename, fOutput_filename):
@@ -187,18 +194,29 @@ class IDGenerator:
             if count < 3:
                 continue
             
-            # Ignore all ID's that have specific HDD value. All ID's should only use 'BRAK DYSKU'  for reasons specific to company policy
-            # These ID's could have been removed during cleaning process in self.clean_ID but it was left for legacy
-            if 'BRAK DYSKU' not in row['HDD']:
-                continue
-            else: 
-                m_hdd = True    # if there is NO HDD in ID then there is a match no matter what
-                count += 1
-                
             # Extract RAM and HDD values from input data
             matches = re.findall(r'\d+', input_row['Docelowa'])
             ram1 = matches[0]
             hdd1 = matches[1]
+            
+            # Ignore all ID's that have specific HDD value. All ID's should only use 'BRAK DYSKU'  for reasons specific to company policy
+            # These ID's could have been removed during cleaning process in self.clean_ID but it was left for legacy
+            if self.hdd_switch is False:
+                if 'BRAK DYSKU' in row['HDD']:
+                    m_hdd = True
+                    count += 1
+            elif self.hdd_switch is True:
+                # Extract HDD values from string containing all sort of additional info
+                # Matching HDD values is legacy code because all actively used ID's have 'BRAK DYSKU' value for reasons specific to company policy
+                hdd2 = re.search(r'\d+', row['HDD'])
+                if hdd2:
+                    hdd2 = hdd2.group(0)
+                if hdd1 == hdd2:
+                    m_hdd = True
+                    count += 1
+                elif 'BRAK DYSKU' in row['HDD']: # if there is NO HDD in ID then there is a match no matter what
+                    m_hdd = True
+                    count += 1
             
             # Extract RAM values from string containing all sort of additional info
             ram2 = re.search(r'\d+', row['RAM'])
@@ -207,19 +225,6 @@ class IDGenerator:
             if ram1 == ram2:
                 m_ram = True
                 count += 1
-            
-            # Extract HDD values from string containing all sort of additional info
-            # Matching HDD values is legacy code because all actively used ID's have 'BRAK DYSKU' value for reasons specific to company policy
-            
-            # hdd2 = re.search(r'\d+', row['HDD'])
-            # if hdd2:
-            #     hdd2 = hdd2.group(0)
-            # if hdd1 == hdd2:
-            #     m_hdd = True
-            #     count += 1
-            # elif 'BRAK DYSKU' in row['HDD']: # if there is NO HDD in ID then there is a match no matter what
-            #     m_hdd = True
-            #     count += 1
                 
             if input_row['Grafika'].lower() in row['Graphics'].lower():
                 m_gpu = True

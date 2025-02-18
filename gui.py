@@ -10,7 +10,7 @@ class GUI():
     def __init__(self, root):
         
         root.title("Vedion ID-generator ver.1.0.0225")
-        root.geometry("500x250")
+        root.geometry("500x260")
         root.resizable(False, False)
         
         root.grid_columnconfigure(0, weight=1)
@@ -20,10 +20,13 @@ class GUI():
         
         self.config_filename = "config.cfg"
         
+        self.hdd_switch = tk.BooleanVar()
+        
         # Open file buttons
         self.file1_button = ttk.Button(root, text="Odśwież", command=self.file1_button_callback)
         self.file2_button = ttk.Button(root, text="...", command=lambda: self.open_file(1))
         self.file3_button = ttk.Button(root, text="...", command=self.open_directory)
+        self.hdd_switch_checkbox = ttk.Checkbutton(root, text="ID z dyskami", variable=self.hdd_switch, command=self.hdd_switch_callback)
         
         # Entries with file names
         self.entry1 = ttk.Entry(root, state="disabled")
@@ -38,6 +41,8 @@ class GUI():
         self.entry2.grid(row=1, column=0, padx=(10,2), pady=1, sticky="we")
         self.entry3.grid(row=2, column=0, padx=(10,2), pady=1, sticky="we")
         
+        self.hdd_switch_checkbox.grid(row=3, column=0, columnspan=2, pady=10)
+        
         # Placeholder texts
         self.fill_entry(self.entry1, "Link do pliku M2 M47")
         self.entry1.configure(state='normal')
@@ -50,11 +55,11 @@ class GUI():
         self.file2_button.grid(row=1, column=1, padx=(0,10), pady=1, sticky="w")
         self.file3_button.grid(row=2, column=1, padx=(0,10), pady=1, sticky="w")
         
-        self.search_button.grid(row=3, column=0, columnspan=2, padx=10, pady=10)
-        self.progressbar.grid(row=4, column=0, columnspan=2, padx=10, pady=(10, 2))
+        self.search_button.grid(row=4, column=0, columnspan=2, padx=10, pady=(0, 30))
+        self.progressbar.grid(row=5, column=0, columnspan=2, padx=10, pady=(10, 2))
         
         self.label1 = ttk.Label(root, text="")
-        self.label1.grid(row=5, column=0, columnspan=2, padx=10)
+        self.label1.grid(row=6, column=0, columnspan=2, padx=10)
         
         # Init IDGenerator
         self.generator = IDGenerator()
@@ -114,6 +119,11 @@ class GUI():
         spreasheet_link = self.entry1.get()
         # Open and read files then this function creates thread that search for ID's
         self.read_files_thread(self.generator, spreasheet_link, self.file_paths[1], self.file_paths[2])
+        
+    
+    def hdd_switch_callback(self):
+        print(self.hdd_switch.get())
+        self.generator.toggle_hdd_switch(self.hdd_switch.get())
         
     # Makes a thread wchich runs functions from IDGenerator that search for ID's
     # It is non-blocking, queue with returned value is checked every 50ms
