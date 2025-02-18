@@ -179,88 +179,89 @@ class IDGenerator:
                 if input_row['Producent'].lower() in row['Manufacturer'].lower():
                     m_manufacturer = True
                     count += 1
-            except Exception as e:
-                return KeyError
                     
-            if input_row['Model'].lower() in row['Model'].lower():  # This is not ideal because some models wrongly match ex. T480 and T480s and silver versions of laptops
-                m_model = True
-                count += 1
-            
-            if input_row['Procesor'].lower() in row['Processor'].lower():
-                m_processor = True
-                count += 1
-            
-            # If Manufacturer, Model and Processor are not matched there is no point of checking other things    
-            if count < 3:
-                continue
-            
-            # Extract RAM and HDD values from input data
-            matches = re.findall(r'\d+', input_row['Docelowa'])
-            ram1 = matches[0]
-            hdd1 = matches[1]
-            
-            # Ignore all ID's that have specific HDD value. All ID's should only use 'BRAK DYSKU'  for reasons specific to company policy
-            # These ID's could have been removed during cleaning process in self.clean_ID but it was left for legacy
-            if self.hdd_switch is False:
-                if 'BRAK DYSKU' in row['HDD']:
-                    m_hdd = True
+                if input_row['Model'].lower() in row['Model'].lower():  # This is not ideal because some models wrongly match ex. T480 and T480s and silver versions of laptops
+                    m_model = True
                     count += 1
-            elif self.hdd_switch is True:
-                # Extract HDD values from string containing all sort of additional info
-                # Matching HDD values is legacy code because all actively used ID's have 'BRAK DYSKU' value for reasons specific to company policy
-                hdd2 = re.search(r'\d+', row['HDD'])
-                if hdd2:
-                    hdd2 = hdd2.group(0)
-                if hdd1 == hdd2:
-                    m_hdd = True
+                
+                if input_row['Procesor'].lower() in row['Processor'].lower():
+                    m_processor = True
                     count += 1
-                elif 'BRAK DYSKU' in row['HDD']: # if there is NO HDD in ID then there is a match no matter what
-                    m_hdd = True
+                
+                # If Manufacturer, Model and Processor are not matched there is no point of checking other things    
+                if count < 3:
+                    continue
+                
+                # Extract RAM and HDD values from input data
+                matches = re.findall(r'\d+', input_row['Docelowa'])
+                ram1 = matches[0]
+                hdd1 = matches[1]
+                
+                # Ignore all ID's that have specific HDD value. All ID's should only use 'BRAK DYSKU'  for reasons specific to company policy
+                # These ID's could have been removed during cleaning process in self.clean_ID but it was left for legacy
+                if self.hdd_switch is False:
+                    if 'BRAK DYSKU' in row['HDD']:
+                        m_hdd = True
+                        count += 1
+                elif self.hdd_switch is True:
+                    # Extract HDD values from string containing all sort of additional info
+                    # Matching HDD values is legacy code because all actively used ID's have 'BRAK DYSKU' value for reasons specific to company policy
+                    hdd2 = re.search(r'\d+', row['HDD'])
+                    if hdd2:
+                        hdd2 = hdd2.group(0)
+                    if hdd1 == hdd2:
+                        m_hdd = True
+                        count += 1
+                    elif 'BRAK DYSKU' in row['HDD']: # if there is NO HDD in ID then there is a match no matter what
+                        m_hdd = True
+                        count += 1
+                
+                # Extract RAM values from string containing all sort of additional info
+                ram2 = re.search(r'\d+', row['RAM'])
+                if ram2:
+                    ram2 = ram2.group(0)
+                if ram1 == ram2:
+                    m_ram = True
                     count += 1
-            
-            # Extract RAM values from string containing all sort of additional info
-            ram2 = re.search(r'\d+', row['RAM'])
-            if ram2:
-                ram2 = ram2.group(0)
-            if ram1 == ram2:
-                m_ram = True
-                count += 1
+                    
+                if input_row['Grafika'].lower() in row['Graphics'].lower():
+                    m_gpu = True
+                    count += 1
+                    
+                if input_row['Wyświetlacz'].lower() in row['Resolution'].lower():
+                    m_resolution = True
+                    count += 1
+                elif 'fhd' in input_row['Wyświetlacz'].lower() and any(keyword in row['Resolution'].lower() for keyword in ['fullhd', 'full hd']):
+                    m_resolution = True
+                    count += 1
+                    
+                if 'dotyk' in input_row['Wyświetlacz'].lower() and 'Yes' in row['Touchscreen']:
+                    m_touchscreen = True
+                    count += 1
+                elif 'dotyk' not in input_row['Wyświetlacz'].lower() and 'No' in row['Touchscreen']:
+                    m_touchscreen = True
+                    count += 1
+                    
+                if any(keyword in input_row['Windows'].lower() for keyword in ['win11pro', 'win11p', 'w11p']) and 'w11p' in row['Windows'].lower():
+                    m_windows = True
+                    count += 1
+                    
+                elif any(keyword in input_row['Windows'].lower() for keyword in ['win11home', 'win11h', 'w11h']) and 'w11h' in row['Windows'].lower():
+                    m_windows = True
+                    count += 1
+                    
+                if input_row['Klasa'].lower() == row['Class'].lower():
+                    m_lap_class = True
+                    count += 1
                 
-            if input_row['Grafika'].lower() in row['Graphics'].lower():
-                m_gpu = True
-                count += 1
-                
-            if input_row['Wyświetlacz'].lower() in row['Resolution'].lower():
-                m_resolution = True
-                count += 1
-            elif 'fhd' in input_row['Wyświetlacz'].lower() and any(keyword in row['Resolution'].lower() for keyword in ['fullhd', 'full hd']):
-                m_resolution = True
-                count += 1
-                
-            if 'dotyk' in input_row['Wyświetlacz'].lower() and 'Yes' in row['Touchscreen']:
-                m_touchscreen = True
-                count += 1
-            elif 'dotyk' not in input_row['Wyświetlacz'].lower() and 'No' in row['Touchscreen']:
-                m_touchscreen = True
-                count += 1
-                
-            if any(keyword in input_row['Windows'].lower() for keyword in ['win11pro', 'win11p', 'w11p']) and 'w11p' in row['Windows'].lower():
-                m_windows = True
-                count += 1
-                
-            elif any(keyword in input_row['Windows'].lower() for keyword in ['win11home', 'win11h', 'w11h']) and 'w11h' in row['Windows'].lower():
-                m_windows = True
-                count += 1
-                
-            if input_row['Klasa'].lower() == row['Class'].lower():
-                m_lap_class = True
-                count += 1
-            
-            # If less than that is matched then laptop is to different to even show it    
-            if(count > 6):
-                # Add new row to df_matched
-                new_row = pd.Series([row['ID'], count, m_manufacturer, m_model, m_processor, m_ram, m_hdd, m_gpu, m_resolution, m_touchscreen, m_windows, m_lap_class], index=df_index)
-                df_matched = pd.concat([df_matched, new_row.to_frame().T], ignore_index=True)
+                # If less than that is matched then laptop is to different to even show it    
+                if(count > 6):
+                    # Add new row to df_matched
+                    new_row = pd.Series([row['ID'], count, m_manufacturer, m_model, m_processor, m_ram, m_hdd, m_gpu, m_resolution, m_touchscreen, m_windows, m_lap_class], index=df_index)
+                    df_matched = pd.concat([df_matched, new_row.to_frame().T], ignore_index=True)
+                    
+            except Exception as e:
+                return e
                 
         if not df_matched.empty:
             return df_matched
@@ -277,9 +278,7 @@ class IDGenerator:
             print(index, "\t", row['S/N'], end="\t")
             if(index >= 0):
                 matched = self.match_one(row, dfID)
-                if matched is KeyError:
-                    return KeyError, KeyError
-                if matched is not None:
+                if isinstance(matched, pd.DataFrame):
                     max_matched = matched['count'].max()    # Best match with most matched values
                     print("matches = ", max_matched, end=",\t")
                     max_rows = matched[matched['count'] == max_matched] # All rows with the most amout of matches
@@ -294,9 +293,11 @@ class IDGenerator:
                     
                     all_matches.append(ID_matched)
                     all_matches_count += 1
-                else:
+                elif matched is None:
                     all_matches.append('brak')
                     print() # Print newline because ther is no newline at the end of -- print(index, row['S/N'], end=" ") --
+                else:
+                    return matched, matched
                 
 
         print("Found ID: ", all_matches_count)

@@ -13,8 +13,8 @@ class GUI():
         root.geometry("500x260")
         root.resizable(False, False)
         
-        root.grid_columnconfigure(0, weight=1)
-        root.grid_columnconfigure(1, weight=0)
+        root.grid_columnconfigure(0, weight=0)
+        root.grid_columnconfigure(1, weight=1)
         
         self.file_paths = [None] * 3
         
@@ -33,33 +33,41 @@ class GUI():
         self.entry2 = ttk.Entry(root, state="disabled")
         self.entry3 = ttk.Entry(root, state="disabled")
         
+        self.label1 = ttk.Label(root, text="Link do pliku M2 M47:")
+        self.label2 = ttk.Label(root, text="Plik z raportem:")
+        self.label3 = ttk.Label(root, text="Folder wyjściowy:")
+        
         # Button that start thread that searches for ID's and progressbar showing progress of the process
         self.search_button = ttk.Button(root, text="Wyszukaj", command=self.search_button_callback)
-        self.progressbar = ttk.Progressbar(root, orient="horizontal", length=200, mode="indeterminate")
+        self.progressbar = ttk.Progressbar(root, orient="horizontal", length=120, mode="indeterminate")
         
-        self.entry1.grid(row=0, column=0, padx=(10,2), pady=(20, 1), sticky="we")
-        self.entry2.grid(row=1, column=0, padx=(10,2), pady=1, sticky="we")
-        self.entry3.grid(row=2, column=0, padx=(10,2), pady=1, sticky="we")
+        self.entry1.grid(row=0, column=1, padx=(10,2), pady=(20, 1), sticky="we")
+        self.entry2.grid(row=1, column=1, padx=(10,2), pady=1, sticky="we")
+        self.entry3.grid(row=2, column=1, padx=(10,2), pady=1, sticky="we")
         
-        self.hdd_switch_checkbox.grid(row=3, column=0, columnspan=2, pady=10)
+        self.label1.grid(row=0, column=0, padx=(10,2), pady=(20, 1), sticky="we")
+        self.label2.grid(row=1, column=0, padx=(10,2), pady=1, sticky="we")
+        self.label3.grid(row=2, column=0, padx=(10,2), pady=1, sticky="we")
+        
+        self.hdd_switch_checkbox.grid(row=3, column=1, padx=(0,40), pady=10)
         
         # Placeholder texts
-        self.fill_entry(self.entry1, "Link do pliku M2 M47")
+        self.fill_entry(self.entry1, "")
         self.entry1.configure(state='normal')
-        self.fill_entry(self.entry2, "Raport z ID do znalezienia")
-        self.fill_entry(self.entry3, "Folder wyjsciowy")
+        self.fill_entry(self.entry2, "")
+        self.fill_entry(self.entry3, "")
         
         self.read_config()
         
-        self.file1_button.grid(row=0, column=1, padx=(0,10), pady=(20, 1), sticky="w")
-        self.file2_button.grid(row=1, column=1, padx=(0,10), pady=1, sticky="w")
-        self.file3_button.grid(row=2, column=1, padx=(0,10), pady=1, sticky="w")
+        self.file1_button.grid(row=0, column=2, padx=(0,10), pady=(20, 1), sticky="w")
+        self.file2_button.grid(row=1, column=2, padx=(0,10), pady=1, sticky="w")
+        self.file3_button.grid(row=2, column=2, padx=(0,10), pady=1, sticky="w")
         
-        self.search_button.grid(row=4, column=0, columnspan=2, padx=10, pady=(0, 30))
-        self.progressbar.grid(row=5, column=0, columnspan=2, padx=10, pady=(10, 2))
+        self.search_button.grid(row=4, column=1, padx=(0,40), pady=(0, 30))
+        self.progressbar.grid(row=5, column=1, padx=(0,40), pady=(10, 2))
         
-        self.label1 = ttk.Label(root, text="")
-        self.label1.grid(row=6, column=0, columnspan=2, padx=10)
+        self.label_status = ttk.Label(root, text="")
+        self.label_status.grid(row=6, column=1, padx=(0,40))
         
         # Init IDGenerator
         self.generator = IDGenerator()
@@ -133,7 +141,7 @@ class GUI():
         
         # Starts the thread and progressbar
         thread.start()
-        self.label1.configure(text="Wyszukiwanie ID")
+        self.label_status.configure(text="Wyszukiwanie ID")
         self.progressbar.start(10)
         
         # Checks queue for returned vales every 50ms
@@ -147,7 +155,7 @@ class GUI():
         
         # Starts the thread and progressbar
         thread.start()
-        self.label1.configure(text="Pobieranie ID")
+        self.label_status.configure(text="Pobieranie ID")
         self.progressbar.start(10)
         
         # Checks queue for returned vales every 50ms
@@ -162,13 +170,13 @@ class GUI():
             # Else there were error
             if isinstance(err, int):    
                 self.progressbar.stop()
-                self.label1.configure(text="")
+                self.label_status.configure(text="")
                 msg = "Znaleziono " + str(err) + " ID"
                 messagebox.showinfo("Znaleziono", msg)  # Show how many ID's were found
                 return err
             else:   
                 self.progressbar.stop()
-                self.label1.configure(text="")
+                self.label_status.configure(text="")
                 messagebox.showinfo("Error!", err)  #Show errors
                 return err
         except queue.Empty:
@@ -183,13 +191,13 @@ class GUI():
             # Else there were error
             if err is None:    
                 self.progressbar.stop()
-                self.label1.configure(text="")
+                self.label_status.configure(text="")
                 # Finds ID's
                 self.search_thread(self.generator)
                 return err
             else:   
                 self.progressbar.stop()
-                self.label1.configure(text="")
+                self.label_status.configure(text="")
                 messagebox.showinfo("Error!", err)  #Show errors
                 return err
         except queue.Empty:
